@@ -110,8 +110,9 @@ write_header_and_offset:
 	
 applyFilter:
 	# applies the filter to all pixels and saves them to the s7 buffer
+	# s6 is the reading address	
 	mv s5, s7		# writing address
-	mv s4, s6		# reading address
+
 	
 	call calculate_pixel_value
 	
@@ -123,7 +124,7 @@ calculate_pixel_value:
 	# pixel A - the pixel, the value of which is calculated
 	# pixel B - the pixel around it which is currently summed
 	
-	mv a1, a0		# calculate x of the pixel
+	mv a1, s6		# calculate x of the pixel
 	jal calculate_pixel_x
 	mv a2, a7		# keep the x of the pixel for the whole iteration
 	
@@ -132,12 +133,13 @@ calculate_pixel_value:
 	mv t4, zero		# the register for holding the weighted sum - B channel 
 	
 	mv t3, zero		# the register for holding the sum of weights
+	li s3, zero		# the offset in respect to the filter - which weight to apply to each pixel
 	
 	li a6, -2		# the currently examined row offset
 	li a5, -2		# currently examined col offset
 	
 	
-	addi t1, a0, -2		# two pixels to the left
+	addi t1, s6, -2		# two pixels to the left
 	slli t2, s10, 1		# two rows up
 	not t2, t2	
 	addi t2, t2, 1		# sign inversion
@@ -148,15 +150,16 @@ calculate_pixel_value:
 	loop_over_pixels:
 		bgt a5, t1, next_row
 		b validate_x	# FIXME
+		
 	validate_x:
 		call calculate_pixel_x
-		sub a1, a1, a7	# difference between the x cords
+		sub a2, a2, a7	# difference between the x cords
 	
 		li t2, 2
-		bgt a1, t2, skip_pixel	# too big of a difference - edge pixel
+		bgt a2, t2, skip_pixel	# too big of a difference - edge pixel
 	
 		li t2, -2
-		blt a1, t2, skip_pixel	# too small of a difference - edge pixel
+		blt a2, t2, skip_pixel	# too small of a difference - edge pixel
 		
 	validate_y:
 		call calculate_pixel_y
@@ -165,6 +168,7 @@ calculate_pixel_value:
 		bge a2, s11, skip_pixel	# y >= height -> data from outside the image
 
 	validated:
+		la t2, filter
 		nop	# TODO	
 			
 
@@ -174,7 +178,12 @@ calculate_pixel_value:
 		
 	next_row:
 		addi a6, a6, 1	# move to next row
-		li a5, -2	# reset the x offset
+		li a5, -2	# reset the x offset	
+
+		add a1, a1, s10	# the same thing, but with the address
+		addi a1, a1, -2
+		
+
 		bgt a6, t1, all_pixels_looped
 		b loop_over_pixels
 		
@@ -184,16 +193,15 @@ calculate_pixel_value:
 		div t5, t5, t3
 		div t4, t4, t3
 		
-		sb t6, (s6)
-		addi s6, s6, 1
-		sb t5, (s6)
-		addi s6, s6, 1
-		sb t4, (s6)
-		addi s6, s6, 1
+		sb t6, (s5)
+		addi s5, s5, 1
+		sb t5, (s5)
+		addi s5, s5, 1
+		sb t4, (s5)
+		addi s5, s5, 1
 		ret
 	
 	
-
 end:
       # call save_file
 	li a7, 10
@@ -230,10 +238,10 @@ save_file:
 	la a0, output_name
 	li a1, 1
 	ecall
-	mv s6, a0
+	mv s1, a0
 	
 	li a7, 64
-	mv a0, s6
+	mv a0, s1
 	mv a1, s7
 	mv a2, s8
 	ecall
