@@ -1,13 +1,14 @@
 
-	.data
+		.data
 
-h_buf:  .space   54
-fname: 	.asciz  "projekt_riscv/czumpee2.bmp"
-filter: .byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 	
+h_buf:  	.space   54
+fname: 		.asciz  "projekt_riscv/czumpee2.bmp"
+output_name:	.asciz "projekt_riscv/convol_result.bmp"
+filter: 	.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 	
 	   
 	
-        .text
-        .globl  main
+ 	       	.text
+       	 	.globl  main
 
 
 main:
@@ -58,6 +59,7 @@ store_important_header_params:	# width stored in s10, height in s11
 
 
 allocate_memory_for_new_file:
+	# This will be the buffer to write the convoluted pixels to
 	li a7, 9
 	mv a0, s8		# allocate memory for a whole copy of the file
 	
@@ -65,7 +67,34 @@ allocate_memory_for_new_file:
 	mv s7, a0		# address of data block in s7
 
 
-read_contents_from_file:
+allocate_memory_for_pixels_only:
+	# This will be the buffer to read pixels from and convolute them
+	li a7, 9
+	mv a0, s8		# allocate memory for a whole copy of the file
+	sub a0, a0, s9		# we don't need the offset
+	
+	ecall
+	mv s6, a0		# address of data block in s7
+			
+
+read_pixels:
+	li a7, 62
+	mv a0, s2		# seek to the start of pixel data
+	mv a1, s9		
+	mv a2, zero
+	ecall
+	
+	li a7, 63		#  read the pixel data
+	mv a0, s2
+	mv a1, s6	
+	
+	mv a2, s8
+	sub a2, a2, s9		# size - offset
+	
+	ecall		
+	
+	
+write_header_and_offset:
 	li a7, 62
 	mv a0, s2		# seek to the beginning of the file
 	mv a1, zero		
@@ -75,6 +104,143 @@ read_contents_from_file:
 	li a7, 63
 	mv a0, s2		# file descriptor
 	mv a1, s7		# address of memory block
-	mv a2, s8		# file size to read
+	mv a2, s9		# file size to read - just the header + rest of the offset
 	ecall
 	
+	
+applyFilter:
+	# applies the filter to all pixels and saves them to the s7 buffer
+	mv s5, s7		# writing address
+	mv s4, s6		# reading address
+	
+	call calculate_pixel_value
+	
+	
+calculate_pixel_value:
+	# calculates the new value of a given pixel
+	# params: pixel address in a0
+	# no return value, saves the pixels under the writing address
+	# pixel A - the pixel, the value of which is calculated
+	# pixel B - the pixel around it which is currently summed
+	
+	mv a1, a0		# calculate x of the pixel
+	jal calculate_pixel_x
+	mv a2, a7		# keep the x of the pixel for the whole iteration
+	
+	mv t6, zero		# the register for holding the weighted sum - R channel
+	mv t5, zero		# the register for holding the weighted sum - G channel
+	mv t4, zero		# the register for holding the weighted sum - B channel 
+	
+	mv t3, zero		# the register for holding the sum of weights
+	
+	li a6, -2		# the currently examined row offset
+	li a5, -2		# currently examined col offset
+	
+	
+	addi t1, a0, -2		# two pixels to the left
+	slli t2, s10, 1		# two rows up
+	not t2, t2	
+	addi t2, t2, 1		# sign inversion
+	add a1, t1, t2		# the address of the furthest pixel up to the left - the first one to convolve
+	li t1, 2		# max row and col offset
+	
+	
+	loop_over_pixels:
+		bgt a5, t1, next_row
+		b validate_x	# FIXME
+	validate_x:
+		call calculate_pixel_x
+		sub a1, a1, a7	# difference between the x cords
+	
+		li t2, 2
+		bgt a1, t2, skip_pixel	# too big of a difference - edge pixel
+	
+		li t2, -2
+		blt a1, t2, skip_pixel	# too small of a difference - edge pixel
+		
+	validate_y:
+		call calculate_pixel_y
+	
+		bltz a2, skip_pixel	# y below 0 -> data from outside the image
+		bge a2, s11, skip_pixel	# y >= height -> data from outside the image
+
+	validated:
+		nop	# TODO	
+			
+
+	skip_pixel:
+		nop	# TODO
+
+		
+	next_row:
+		addi a6, a6, 1	# move to next row
+		li a5, -2	# reset the x offset
+		bgt a6, t1, all_pixels_looped
+		b loop_over_pixels
+		
+	all_pixels_looped:
+		# divide the sums by the sum of weights and write them under the address
+		div t6, t6, t3
+		div t5, t5, t3
+		div t4, t4, t3
+		
+		sb t6, (s6)
+		addi s6, s6, 1
+		sb t5, (s6)
+		addi s6, s6, 1
+		sb t4, (s6)
+		addi s6, s6, 1
+		ret
+	
+	
+
+end:
+      # call save_file
+	li a7, 10
+	ecall
+
+
+
+calculate_pixel_x:
+	# calculates the x coordinate of a pixel's location in on a plane where the left most pixel has coordinates (0,0)
+	# params: pixel address in a1
+	# returns: pixel x in a2
+	sub a2, a1, s7		# calculate the index of the pixel in the image
+	rem a2, a2, s10		# divide by row size and get the remainder - that's the x cord of the byte
+	li t2, 3
+	div a2, a2, 3		# pixel coordinate -> divide by 3
+	ret
+	
+
+calculate_pixel_y:
+	# calculates the x coordinate of a pixel's location in on a plane where the left most pixel has coordinates (0,0)
+	# params: pixel address in a1
+	# returns: pixel x in a2
+	sub a2, a1, s7		# index of the pixel in the imag3
+	div a2, a2, s10		# divide and get y cord of the byte
+	li t2, 3
+	div a2, a2, 3		# pixel coordinate -> divide by 3
+	ret
+	
+
+
+
+save_file:
+	li a7, 1024
+	la a0, output_name
+	li a1, 1
+	ecall
+	mv s6, a0
+	
+	li a7, 64
+	mv a0, s6
+	mv a1, s7
+	mv a2, s8
+	ecall
+	ret
+			
+
+
+
+
+
