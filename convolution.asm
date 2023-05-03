@@ -74,8 +74,8 @@ allocate_memory_for_pixels_only:
 	sub a0, a0, s9		# we don't need the offset
 	
 	ecall
-	mv s6, a0		# address of data block in s7
-			
+	mv s6, a0		# address of data block in s6
+				
 
 read_pixels:
 	li a7, 62
@@ -89,10 +89,10 @@ read_pixels:
 	mv a1, s6	
 	
 	mv a2, s8
-	sub a2, a2, s9		# size - offset
+	sub a2, a2, s9		# size - offset = size of pixel data
 	
 	ecall		
-	
+
 	
 write_header_and_offset:
 	li a7, 62
@@ -107,19 +107,33 @@ write_header_and_offset:
 	mv a2, s9		# file size to read - just the header + rest of the offset
 	ecall
 	
+close_file:
+	li a7, 57
+	mv a0, s2
+	ecall			# close the original bmp image
+
 	
 applyFilter:
 	# applies the filter to all pixels and saves them to the s7 buffer
-	# s6 is the reading address	
-	mv s5, s7		# writing address
-
+	# s6 is the reading address - the pixel, the value of which is currently being calculated
+		
+	add s5, s7, s9		# writing address that will be updated throughout the function
+	mv s2, s6		# a copy of the block address, so we can modify the s6 one as we progress
 	
-	call calculate_pixel_value
+	value_for_each_pixel:
+		add t2, s7, s8			# the end address of our writing block - if we reach it, the filter is applied
+		bge s5, t2, end			# all the data is ready, save the file and end the program
+		
+		b calculate_pixel_value
+		
+	return_address_from_CPV:
+		addi s6, s6, 3			# next pixel
+		b value_for_each_pixel		# loop over
 	
 	
 calculate_pixel_value:
 	# calculates the new value of a given pixel
-	# params: pixel address in a0
+	# params: pixel address in s6
 	# no return value, saves the pixels under the writing address
 	# pixel A - the pixel, the value of which is calculated
 	# pixel B - the pixel around it which is currently summed
@@ -133,7 +147,7 @@ calculate_pixel_value:
 	mv t4, zero		# the register for holding the weighted sum - B channel 
 	
 	mv t3, zero		# the register for holding the sum of weights
-	li s3, zero		# the offset in respect to the filter - which weight to apply to each pixel
+	mv s3, zero		# the offset in respect to the filter - which weight to apply to each pixel
 	
 	li a6, -2		# the currently examined row offset
 	li a5, -2		# currently examined col offset
@@ -148,18 +162,17 @@ calculate_pixel_value:
 	
 	
 	loop_over_pixels:
+		li t1, 2	# max row and col offset
 		bgt a5, t1, next_row
-		b validate_x	# FIXME
 		
 	validate_x:
 		call calculate_pixel_x
 		sub a2, a2, a7	# difference between the x cords
 	
-		li t2, 2
-		bgt a2, t2, skip_pixel	# too big of a difference - edge pixel
+		bgt a2, t1, skip_pixel	# too big of a difference - edge pixel
 	
-		li t2, -2
-		blt a2, t2, skip_pixel	# too small of a difference - edge pixel
+		li t1, -2
+		blt a2, t1, skip_pixel	# too small of a difference - edge pixel
 		
 	validate_y:
 		call calculate_pixel_y
@@ -169,12 +182,36 @@ calculate_pixel_value:
 
 	validated:
 		la t2, filter
-		nop	# TODO	
-			
+		add t2, t2, s3		# address of the current filter weight
+		lb t2, (t2)		# load the weight
+		add t3, t3, t2		# add it to the current sum of weights
+		
+		lb t1, (a1)		# R channel
+		mul t1, t1, t2		# value * weight
+		add t6, t6, t1		# add up to the sum
+		
+		addi a1, a1, 1		# G channel
+		lb t1, (a1)
+		mul t1, t1, t2		
+		add t5, t5, t1
+		
+		addi a1, a1, 1		# B channel
+		lb t1, (a1)
+		mul t1, t1, t2		
+		add t4, t4, t1
+		
+		addi a5, a5, 1		# update the x offset before moving to the next pixel
+		addi s3, s3, 1		# move to the next weight
+		b loop_over_pixels	# move to the next pixel - its address is already in a1
+						
 
 	skip_pixel:
-		nop	# TODO
-
+		# move to the next pixel without adding its value to the weighted sums
+		addi s3, s3, 1		# move to the next weight
+		addi a1, a1, 3		# move 3 bytes to the right - to the next pixel
+		addi a5, a5, 1		# update the x offset
+		b loop_over_pixels
+		
 		
 	next_row:
 		addi a6, a6, 1	# move to next row
@@ -183,10 +220,11 @@ calculate_pixel_value:
 		add a1, a1, s10	# the same thing, but with the address
 		addi a1, a1, -2
 		
-
+		li t1, 2
 		bgt a6, t1, all_pixels_looped
 		b loop_over_pixels
 		
+
 	all_pixels_looped:
 		# divide the sums by the sum of weights and write them under the address
 		div t6, t6, t3
@@ -199,11 +237,11 @@ calculate_pixel_value:
 		addi s5, s5, 1
 		sb t4, (s5)
 		addi s5, s5, 1
-		ret
+		b return_address_from_CPV # return from the function
 	
 	
 end:
-      # call save_file
+	call save_file
 	li a7, 10
 	ecall
 
@@ -213,10 +251,10 @@ calculate_pixel_x:
 	# calculates the x coordinate of a pixel's location in on a plane where the left most pixel has coordinates (0,0)
 	# params: pixel address in a1
 	# returns: pixel x in a2
-	sub a2, a1, s7		# calculate the index of the pixel in the image
+	sub a2, a1, s2		# calculate the index of the pixel in the image
 	rem a2, a2, s10		# divide by row size and get the remainder - that's the x cord of the byte
 	li t2, 3
-	div a2, a2, 3		# pixel coordinate -> divide by 3
+	div a2, a2, t2		# pixel coordinate -> divide by 3
 	ret
 	
 
@@ -224,10 +262,10 @@ calculate_pixel_y:
 	# calculates the x coordinate of a pixel's location in on a plane where the left most pixel has coordinates (0,0)
 	# params: pixel address in a1
 	# returns: pixel x in a2
-	sub a2, a1, s7		# index of the pixel in the imag3
+	sub a2, a1, s2		# index of the pixel in the imag3
 	div a2, a2, s10		# divide and get y cord of the byte
 	li t2, 3
-	div a2, a2, 3		# pixel coordinate -> divide by 3
+	div a2, a2, t2		# pixel coordinate -> divide by 3
 	ret
 	
 
