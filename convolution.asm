@@ -4,7 +4,7 @@
 h_buf:  	.space   54
 fname: 		.asciz  "projekt_riscv/czumpee2.bmp"
 output_name:	.asciz "projekt_riscv/convol_result.bmp"
-filter: 	.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 	
+filter: 	.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 	
 	   
 	
  	       	.text
@@ -140,7 +140,7 @@ calculate_pixel_value:
 	
 	mv a1, s6		# calculate x of the pixel
 	jal calculate_pixel_x
-	mv a2, a7		# keep the x of the pixel for the whole iteration
+	mv a7, a2		# keep the x of the pixel for the whole iteration
 	
 	mv t6, zero		# the register for holding the weighted sum - R channel
 	mv t5, zero		# the register for holding the weighted sum - G channel
@@ -153,7 +153,7 @@ calculate_pixel_value:
 	li a5, -2		# currently examined col offset
 	
 	
-	addi t1, s6, -2		# two pixels to the left
+	addi t1, s6, -6		# two pixels to the left
 	slli t2, s10, 1		# two rows up
 	not t2, t2	
 	addi t2, t2, 1		# sign inversion
@@ -218,7 +218,7 @@ calculate_pixel_value:
 		li a5, -2	# reset the x offset	
 
 		add a1, a1, s10	# the same thing, but with the address
-		addi a1, a1, -2
+		addi a1, a1, -6	# two pixels to the left
 		
 		li t1, 2
 		bgt a6, t1, all_pixels_looped
