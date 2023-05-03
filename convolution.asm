@@ -2,9 +2,12 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/czumpee2.bmp"
-output_name:	.asciz "projekt_riscv/convol_result.bmp"
-filter: 	.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 	
+fname: 		.asciz  "projekt_riscv/cat-32.bmp"
+output_name:	.asciz "projekt_riscv/convolres.bmp"
+# filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
+#filter: 	.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+#filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
+filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
 	   
 	
  	       	.text
@@ -12,7 +15,7 @@ filter: 	.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 
 
 main:
-
+	mv tp, zero
 
 
 get_file_desc:		# saves the file descriptor to a0
@@ -46,9 +49,9 @@ store_important_header_params:	# width stored in s10, height in s11
 	add s8, s8, t2		# second half of size
 
 				# bytes 19-22 - width
-	lhu s10, 20(t1)		# first half of offset
+	lhu s10, 20(t1)		# first half of width
 	slli s10, s10, 16	# make place for the other half
-	lh t2, 18(t1)		# second half of offset
+	lh t2, 18(t1)		# second half of width
 	add s10, s10, t2	# add the halves together
 
 				# bytes 23-26 - height
@@ -153,29 +156,36 @@ calculate_pixel_value:
 	li a5, -2		# currently examined col offset
 	
 	
-	addi t1, s6, -6		# two pixels to the left
-	slli t2, s10, 1		# two rows up
+	
+	slli t2, s10, 2		# two rows up - 3*2 = 6 rows of bytes worth up
+	slli t1, s10, 1
+	
+	add t2, t2, t1		# 2+4 = 6 rows of bytes worth in t2
 	not t2, t2	
 	addi t2, t2, 1		# sign inversion
+	
+	addi t1, s6, -6		# two pixels to the left of our original pixel A address
 	add a1, t1, t2		# the address of the furthest pixel up to the left - the first one to convolve
-	li t1, 2		# max row and col offset
+	li t1, 2		# max row and col offset for comparisons
 	
 	
 	loop_over_pixels:
-		li t1, 2	# max row and col offset
+		li t1, 2		# max row and col offset
 		bgt a5, t1, next_row
 		
 	validate_x:
-		call calculate_pixel_x
-		sub a2, a2, a7	# difference between the x cords
-	
+		li t1, 2		# max row and col offset
+		jal calculate_pixel_x
+		bltz a2, skip_pixel	# x below 0 -> data from outside the image
+		bge a2, s10, skip_pixel # x >= width -> data from outside the image
+		
+		sub a2, a2, a7		# difference between the x cords
 		bgt a2, t1, skip_pixel	# too big of a difference - edge pixel
-	
 		li t1, -2
 		blt a2, t1, skip_pixel	# too small of a difference - edge pixel
 		
 	validate_y:
-		call calculate_pixel_y
+		jal calculate_pixel_y
 	
 		bltz a2, skip_pixel	# y below 0 -> data from outside the image
 		bge a2, s11, skip_pixel	# y >= height -> data from outside the image
@@ -186,22 +196,23 @@ calculate_pixel_value:
 		lb t2, (t2)		# load the weight
 		add t3, t3, t2		# add it to the current sum of weights
 		
-		lb t1, (a1)		# R channel
+		lb t1, (a1)		# first channel
 		mul t1, t1, t2		# value * weight
 		add t6, t6, t1		# add up to the sum
 		
-		addi a1, a1, 1		# G channel
+		addi a1, a1, 1		# second channel
 		lb t1, (a1)
 		mul t1, t1, t2		
 		add t5, t5, t1
 		
-		addi a1, a1, 1		# B channel
+		addi a1, a1, 1		# third channel
 		lb t1, (a1)
 		mul t1, t1, t2		
 		add t4, t4, t1
 		
 		addi a5, a5, 1		# update the x offset before moving to the next pixel
 		addi s3, s3, 1		# move to the next weight
+		addi a1, a1, 1		# increment the address so that a1 points to the R octet of a new pixel
 		b loop_over_pixels	# move to the next pixel - its address is already in a1
 						
 
@@ -214,11 +225,14 @@ calculate_pixel_value:
 		
 		
 	next_row:
-		addi a6, a6, 1	# move to next row
-		li a5, -2	# reset the x offset	
-
-		add a1, a1, s10	# the same thing, but with the address
-		addi a1, a1, -6	# two pixels to the left
+		addi a6, a6, 1		# move to next row
+		li a5, -2		# reset the x offset	
+		
+		slli t1, s10, 1
+		add t1, t1, s10	 # one row of pixels = 3*rowlength of bytes
+		
+		add a1, a1, t1		# address of the same pixel, but a row lower
+		addi a1, a1, -15	# five pixels to the left
 		
 		li t1, 2
 		bgt a6, t1, all_pixels_looped
@@ -237,11 +251,12 @@ calculate_pixel_value:
 		addi s5, s5, 1
 		sb t4, (s5)
 		addi s5, s5, 1
+		addi tp, tp, 1
 		b return_address_from_CPV # return from the function
 	
 	
 end:
-	call save_file
+	jal save_file
 	li a7, 10
 	ecall
 
@@ -259,13 +274,13 @@ calculate_pixel_x:
 	
 
 calculate_pixel_y:
-	# calculates the x coordinate of a pixel's location in on a plane where the left most pixel has coordinates (0,0)
+	# calculates the y coordinate of a pixel's location in on a plane where the left most pixel has coordinates (0,0)
 	# params: pixel address in a1
-	# returns: pixel x in a2
+	# returns: pixel y in a2
 	sub a2, a1, s2		# index of the pixel in the imag3
 	div a2, a2, s10		# divide and get y cord of the byte
 	li t2, 3
-	div a2, a2, t2		# pixel coordinate -> divide by 3
+	div a2, a2, t2		# we want the y of the pixel, not individual byte
 	ret
 	
 
