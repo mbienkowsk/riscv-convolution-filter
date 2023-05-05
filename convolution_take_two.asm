@@ -198,6 +198,9 @@ save_file:
 	ret
 
 
+###################################################################3
+
+
 calculate_pixel_x:
 # calculates the x coordinate of the pixel in the cartesian coordinate system
 # takes in the pixel offset in bytes in a0, returns the x value in a1
@@ -218,6 +221,57 @@ calculate_pixel_y:
 cords_to_offset:
 # calculates the offset of a pixel based on its x and y position
 # takes in an x in a4 and y in a5, returns offset in a1
-nop
+				# MOD 4 CASE!
+	slli t1, s4, 1		# multiply width of image by 3 to calculate width in pixels
+	add t1, t1, s4		
+	
+	mul a1, t1, a5		# width in pixels * y = idx of start of row
+	
+	slli t1, a4, 1		# multiply x by 3 to calculate offset from start of row in pixels
+	add t1, t1, a4		
+	
+	add a1, a1, t1		# add them together to get the final offset
+	ret
+
+
+#####################################################################
+
+
+unit_tests:
+	li a4, 3
+	li a5, 3
+	jal cords_to_offset
+	li a7, 81
+	bne a7, a1, test_failed
+	nop	# FIRST TEST
+	
+	li a4, 0
+	li a5, 7
+	jal cords_to_offset
+	li a7, 168
+	bne a7, a1, test_failed
+	nop	# 2ND TEST
+	
+	li a4, 0
+	li a5, 0
+	jal cords_to_offset
+	mv a7, zero
+	bne a7, a1, test_failed
+	nop	# 3RD TEST
+	
+	li a4, 0
+	li a5, 1
+	jal cords_to_offset
+	li a7, 24
+	bne a7, a1, test_failed
+	nop	# 4TH TEST
+	
+	
+	b end
+
+
+test_failed:
+	nop
+
 
 
