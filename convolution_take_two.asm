@@ -119,7 +119,7 @@ close_file:
 convolute_all_pixels:
 	li s10, 0		# offset of current pixel in respect to the start of the pixel data
 	
-loop_over_pixels:
+main_loop:
 	sub t1, s3, s2		# size of pixel data in bytes
 	bge s10, t1, end	# reached the end of the file
 	
@@ -130,11 +130,46 @@ loop_over_pixels:
 	mv a0, s10
 	jal calculate_pixel_y
 	mv a3, a1		# y of currently calculated pixel in a3	
+	
+	
+	
+calculate_pixel_value:
+	# starting offset parameters:
+	li t1, -2				# current x offset in respect to the pixel being calculated
+	li t2, -2				# current y offset in respect to the pixel being calculated	
 
-	addi s10, s10, 3	# next pixel
-	b loop_over_pixels	# TEST FOR NOW
+validate_pixel:
+	add a4, a2, t1				# x coordinate of the current surrounding pixel 
+	#bltz a4, next_pixel			# x too low - pixel out of the picture
+	#bgt a4, s4, next_pixel			# x too high - pixel out of the picture
+	
+	add a5, a3, t2				#  x coordinate of the current surrounding pixel
+	#bltz a5, next_pixel			# y too low - pixel out of the picture
+	#bgt a5, s4, next_pixel			# y too high - pixel out of the picture
+	
+	
+validated:	
+	## need to calculate value here!
+	nop
+next_pixel:
+	addi t1, t1, 1
+	li t3, 2				# max offset
+	bgt t1, t3, next_row			# x offset > 2 -> switch to next row
+	b validate_pixel
+	
+
+next_row:
+	li t1, -2				# reset the x offset
+	addi t2, t2, 1				# one row down
+	li t3, 2				# max offset
+	bgt t2, t3, all_surr_pixels_looped	# y offset >=3 -> all pixels accounted for
+	b validate_pixel
 
 
+
+all_surr_pixels_looped:
+	addi s10, s10, 3			# move 1 pixel = 3 bytes
+	b main_loop
 
 
 end:
@@ -175,5 +210,10 @@ calculate_pixel_y:
 	divu a1, t2, s4		# y coordinate
 	ret
 
+
+cords_to_offset:
+# calculates the offset of a pixel based on its x and y position
+# takes in an x in a4 and y in a5, returns offset in a1
+nop
 
 
