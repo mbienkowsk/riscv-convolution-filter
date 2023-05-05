@@ -138,19 +138,22 @@ calculate_pixel_value:
 	li t1, -2				# current x offset in respect to the pixel being calculated
 	li t2, -2				# current y offset in respect to the pixel being calculated	
 
+
 validate_pixel:
 	add a4, a2, t1				# x coordinate of the current surrounding pixel 
-	#bltz a4, next_pixel			# x too low - pixel out of the picture
-	#bgt a4, s4, next_pixel			# x too high - pixel out of the picture
+	bltz a4, next_pixel			# x too low - pixel out of the picture
+	bge a4, s4, next_pixel			# x too high - pixel out of the picture
 	
 	add a5, a3, t2				#  x coordinate of the current surrounding pixel
-	#bltz a5, next_pixel			# y too low - pixel out of the picture
-	#bgt a5, s4, next_pixel			# y too high - pixel out of the picture
+	bltz a5, next_pixel			# y too low - pixel out of the picture
+	bge a5, s5, next_pixel			# y too high - pixel out of the picture
 	
 	
 validated:	
 	## need to calculate value here!
-	nop
+	nop						# VALIDATED PIXEL
+	
+	
 next_pixel:
 	addi t1, t1, 1
 	li t3, 2				# max offset
@@ -168,7 +171,8 @@ next_row:
 
 
 all_surr_pixels_looped:
-	addi s10, s10, 3			# move 1 pixel = 3 bytes
+	nop					# //MAIN PIXEL LOOP
+	addi s10, s10, 3			# move 1 pixel = 3 bytes forward
 	b main_loop
 
 
