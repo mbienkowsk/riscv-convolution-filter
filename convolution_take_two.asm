@@ -2,7 +2,7 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/czumpee2.bmp"
+fname: 		.asciz  "projekt_riscv/czumpi8x8.bmp"
 output_name:	.asciz "projekt_riscv/convolres.bmp"
 
 #filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
@@ -116,9 +116,29 @@ close_file:
 	ecall			# close the original bmp image
 
 
+convolute_all_pixels:
+	li s10, 0		# offset of current pixel in respect to the start of the pixel data
+	
+loop_over_pixels:
+	sub t1, s3, s2		# size of pixel data in bytes
+	bge s10, t1, end	# reached the end of the file
+	
+	mv a0, s10
+	jal calculate_pixel_x
+	mv a2, a1		# x of currently calculated pixel in a2
+	
+	mv a0, s10
+	jal calculate_pixel_y
+	mv a3, a1		# y of currently calculated pixel in a3	
+
+	addi s10, s10, 3	# next pixel
+	b loop_over_pixels	# TEST FOR NOW
+
+
+
 
 end:
-	jal save_file
+	#jal save_file
 	li a7, 10
 	ecall
 
@@ -137,3 +157,23 @@ save_file:
 	mv a2, s3
 	ecall
 	ret
+
+
+calculate_pixel_x:
+# calculates the x coordinate of the pixel in the cartesian coordinate system
+# takes in the pixel offset in bytes in a0, returns the x value in a1
+	li t1, 3
+	divu t2, a0, t1		# index of the pixel
+	remu a1, t2, s4		# x coordinate
+	ret
+
+calculate_pixel_y:
+# calculates the y coordinate of the pixel in the cartesian coordinate system
+# takes in the pixel offset in bytes in a0, returns the y value in a1
+	li t1, 3
+	divu t2, a0, t1		# index of the pixel
+	divu a1, t2, s4		# y coordinate
+	ret
+
+
+
