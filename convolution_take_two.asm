@@ -2,14 +2,14 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/czumpi8x8.bmp"
+fname: 		.asciz  "projekt_riscv/btop.bmp"
 output_name:	.asciz "projekt_riscv/convolres.bmp"
 
 #filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
 #filter: 	.byte 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 #filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
-#filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-filter:		.byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25
+filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+#filter:		.byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25
 	   
 	
  	       	.text
@@ -155,6 +155,7 @@ validate_pixel:
 	
 	
 validated:
+	
 	# calculate the offset from the start of the filter and store the result in a2
 	slli t2, t1, 2
 	add t2, t2, t1				# multiply y offset * 5	
@@ -169,7 +170,7 @@ validated:
 
 	# load the color data from memory
 	jal cords_to_offset	# calculate the offset of the byte from the start of the data
-	addi a1, a1, s7		# offset + address of start of data = address of the pixel
+	add a1, a1, s7		# offset + address of start of data = address of the pixel
 	
 	# update the channel sums
 	lb t3, (a1)		# B channel
@@ -184,7 +185,8 @@ validated:
 	mul t3, t3, t2		# mul by weight
 	add s1, s1, t3		# add to channel sum
 	
-	
+		
+				
 	nop			# VALIDATED PIXEL
 	
 	
@@ -254,18 +256,17 @@ calculate_pixel_y:
 
 cords_to_offset:
 # calculates the offset of a pixel based on its x and y position
-# takes in an x in a4 and y in a5, returns offset in a1
+# takes in x in a4 and y in a5, returns offset in a1
 				# MOD 4 CASE!
-	slli t0, s4, 1		# multiply width of image by 3 to calculate width in pixels
-	add t0, t0, s4		
+	slli t3, s4, 1		# multiply width of image by 3 to calculate width in pixels
+	add t3, t3, s4		
 	
-	mul a1, t0, a5		# width in pixels * y = idx of start of row
+	mul a1, t3, a5		# width in pixels * y = idx of start of row
 	
-	slli t0, a4, 1		# multiply x by 3 to calculate offset from start of row in pixels
-	add t0, t0, a4		
+	slli t3, a4, 1		# multiply x by 3 to calculate offset from start of row in pixels
+	add t3, t3, a4		
 	
-	add a1, a1, t0		# add them together to get the final offset
-	ret
+	add a1, a1, t3		# add them together to get the final offset
 	
 
 #####################################################################
