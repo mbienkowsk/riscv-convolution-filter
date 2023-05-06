@@ -2,21 +2,24 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/pepsi.bmp"
+fname: 		.asciz  "projekt_riscv/pepsi_high_res.bmp"
 output_name:	.asciz "projekt_riscv/convolres.bmp"
 
-filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
+#filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
 #filter: 	.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 #filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
 #filter:		.byte 0, 0, -2, 0, 0, 0, -2, -5, -2, 0, -2, -5, 86, -5, -2, 0, -2, -5, -2, 0, 0, 0, -2, 0, 0
-#filter:		.byte 0, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, -2, 0, 2, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0
+filter:		.byte 0, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, -2, 0, 2, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0
 #filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
 	   
 	
  	       	.text
        	 	.globl  main
 
+
 main:
+
+
 
 get_file_desc:		# saves the file descriptor to a0
 	li a7, 1024
@@ -60,7 +63,9 @@ store_important_header_params:	# width stored in s10, height in s11
 	lh t1, 22(t0)
 	add s5, s5, t1
 	
-	rem s8, s2, 4		# used to calculate the padding later on
+	li t1, 4
+	rem s8, s4, t1		# used to calculate the padding later on
+
 	
 	
 allocate_memory_for_new_file:
@@ -224,7 +229,7 @@ skip_division:
 	mv a4, a2
 	mv a5, a3	
 	
-	call cords_to_offset
+	jal cords_to_offset
 	add a1, a1, s6				# add base address to offset
 	add a1, a1, s2				# add header + starting offset length to address
 	
@@ -232,11 +237,27 @@ skip_division:
 	sb a7, (a1)
 	sb s0, 1(a1)
 	sb s1, 2(a1)		
-	
 	nop					# //MAIN PIXEL LOOP
+	
+	mv t6, a1				# save in case end of row is reached
+	
 	addi s10, s10, 3			# move 1 pixel = 3 bytes forward
-	b main_loop
-
+	mv a0, s10
+	
+	jal calculate_pixel_x
+	blt a1, s4, main_loop			# not the last pixel in row
+	
+	add s10, s10, s8			# last pixel in row - skip the padding
+	mv t5, s8				# copy of padding size
+	addi t6, t6, 3				# first free address
+	
+	write_padding_loop:
+		beqz t5, main_loop		# all padding has been redistributed
+		sb zero, (t6)			# pad
+		addi t6, t6, 1			# increment writing address
+		addi t5, t5, -1			# decrement loops left counter
+		b write_padding_loop
+		#//changed
 
 end:
 	jal save_file
@@ -260,32 +281,37 @@ save_file:
 	ret
 
 
-###################################################################3
+###################################################################
 
 
 calculate_pixel_x:
 # calculates the x coordinate of the pixel in the cartesian coordinate system
 # takes in the pixel offset in bytes in a0, returns the x value in a1
-	li t0, 3
-	divu t1, a0, t0		# index of the pixel
-	remu a1, t1, s4		# x coordinate
+	li t0, 3		#//changed
+	mul t1, s4, t0
+	add t1, t1, s8		# width of the file in bytes
+	remu a1, a0, t1		# x idx of byte in row
+	divu a1, a1, t0		# divide by 3 to get the index of the pixel
 	ret
 
 calculate_pixel_y:
 # calculates the y coordinate of the pixel in the cartesian coordinate system
 # takes in the pixel offset in bytes in a0, returns the y value in a1
-	li t0, 3
-	divu t1, a0, t0		# index of the pixel
-	divu a1, t1, s4		# y coordinate
+	li t0, 3		#//changed
+	mul t1, s4, t0
+	add t1, t1, s8		# width of the file in bytes
+
+	divu a1, a0, t1		# y coordinate
 	ret
 
 
 cords_to_offset:
 # calculates the offset of a pixel based on its x and y position
 # takes in x in a4 and y in a5, returns offset in a1
-				# MOD 4 CASE!
+				#//changed
 	slli t3, s4, 1		# multiply width of image by 3 to calculate width in pixels
 	add t3, t3, s4		
+	add t3, t3, s8		# account for zero-padding if width mod 4!=0
 	
 	mul a1, t3, a5		# width in pixels * y = idx of start of row
 	
@@ -299,36 +325,47 @@ cords_to_offset:
 
 
 unit_tests:
-	li a4, 3
-	li a5, 3
-	jal cords_to_offset
-	li a7, 81
+
+	li a0, 24
+	li s4, 7
+	li s8, 3
+	
+	jal calculate_pixel_y
+	li a7, 1
 	bne a7, a1, test_failed
 	nop	# FIRST TEST
 	
-	li a4, 0
-	li a5, 7
-	jal cords_to_offset
-	li a7, 168
-	bne a7, a1, test_failed
-	nop	# 2ND TEST
+	li a0, 19
+	li s4, 6
+	li s8, 2
 	
-	li a4, 0
-	li a5, 0
-	jal cords_to_offset
-	mv a7, zero
+	jal calculate_pixel_y
+	li a7, 0
 	bne a7, a1, test_failed
-	nop	# 3RD TEST
+	nop	# 2ND TESTT
 	
-	li a4, 0
-	li a5, 1
-	jal cords_to_offset
-	li a7, 24
+	li a0, 19
+	li s4, 5
+	li s8, 3
+	
+	jal calculate_pixel_y
+	li a7, 1
 	bne a7, a1, test_failed
-	nop	# 4TH TEST
+	nop	# 3RD TESTT
+	
+	li a0, 93
+	li s4, 7
+	li s8, 1
+	
+	jal calculate_pixel_y
+	li a7, 4
+	bne a7, a1, test_failed
+	nop	# 4TH TESTT
 	
 	
 	b end
+
+
 
 
 test_failed:
