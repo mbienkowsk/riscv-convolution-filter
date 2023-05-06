@@ -164,7 +164,26 @@ validated:
 	# load the corresponding weight from memory
 	la t3, filter
 	add t2, t2, t3		# address of the weight
-	lb t2, (t2)
+	lb t2, (t2)		# weight in t2
+	add a6, a6, t2		# add weight to the sum of weights
+
+	# load the color data from memory
+	jal cords_to_offset	# calculate the offset of the byte from the start of the data
+	addi a1, a1, s7		# offset + address of start of data = address of the pixel
+	
+	# update the channel sums
+	lb t3, (a1)		# B channel
+	mul t3, t3, t2		# mul by weight
+	add a7, a7, t3		# add to channel sum
+	
+	lb t3, 1(a1)		# G channel
+	mul t3, t3, t2		# mul by weight
+	add s0, s0, t3		# add to channel sum
+	
+	lb t3, 2(a1)		# B channel 
+	mul t3, t3, t2		# mul by weight
+	add s1, s1, t3		# add to channel sum
+	
 	
 	nop			# VALIDATED PIXEL
 	
