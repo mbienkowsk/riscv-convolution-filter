@@ -33,30 +33,30 @@ read_header:		# reads the first 54 bits of the file
 	
 	
 store_important_header_params:	# width stored in s10, height in s11
-	la t1, h_buf		# offset of the rest of the file in s2
+	la t0, h_buf		# offset of the rest of the file in s2
 				# total size in s3
 				# bytes 11-14 of the header - offset
-	lhu s2, 12(t1)		# load offset into register
+	lhu s2, 12(t0)		# load offset into register
 	slli s2, s2, 16		# make space for the rest of the offset
-	lh t2, 10(t1)		# second half of the offset
-	add s2, s2, t2		# add the halves together - offset in s2
+	lh t1, 10(t0)		# second half of the offset
+	add s2, s2, t1		# add the halves together - offset in s2
 
-	lhu s3, 4(t1)		# first half of size
+	lhu s3, 4(t0)		# first half of size
 	slli s3, s3, 16
-	lh t2, 2(t1)
-	add s3, s3, t2		# second half of size
+	lh t1, 2(t0)
+	add s3, s3, t1		# second half of size
 
 				# bytes 19-22 - width
-	lhu s4, 20(t1)		# first half of width
+	lhu s4, 20(t0)		# first half of width
 	slli s4, s4, 16		# make place for the other half
-	lh t2, 18(t1)		# second half of width
-	add s4, s4, t2		# add the halves together
+	lh t1, 18(t0)		# second half of width
+	add s4, s4, t1		# add the halves together
 
 				# bytes 23-26 - height
-	lhu s5, 24(t1)		# load height into register
+	lhu s5, 24(t0)		# load height into register
 	slli s5, s5, 16		# make place again
-	lh t2, 22(t1)
-	add s5, s5, t2
+	lh t1, 22(t0)
+	add s5, s5, t1
 	
 	
 allocate_memory_for_new_file:
@@ -120,8 +120,8 @@ convolute_all_pixels:
 	li s10, 0		# offset of current pixel in respect to the start of the pixel data
 	
 main_loop:
-	sub t1, s3, s2		# size of pixel data in bytes
-	bge s10, t1, end	# reached the end of the file
+	sub t0, s3, s2		# size of pixel data in bytes
+	bge s10, t0, end	# reached the end of the file
 	
 	mv a0, s10
 	jal calculate_pixel_x
@@ -131,41 +131,51 @@ main_loop:
 	jal calculate_pixel_y
 	mv a3, a1		# y of currently calculated pixel in a3	
 	
+	mv a6, zero		# register holding the sum of weights
+	mv a7, zero		# register holding the sum of the B channel
+	mv s0, zero		# register holding the sum of the G channel
+	mv s1, zero		# register holding the sum of the R channel 
 	
 	
 calculate_pixel_value:
 	# starting offset parameters:
-	li t1, -2				# current x offset in respect to the pixel being calculated
-	li t2, -2				# current y offset in respect to the pixel being calculated	
+	li t0, -2				# current x offset in respect to the pixel being calculated
+	li t1, -2				# current y offset in respect to the pixel being calculated	
 
 
 validate_pixel:
-	add a4, a2, t1				# x coordinate of the current surrounding pixel 
+	add a4, a2, t0				# x coordinate of the current surrounding pixel 
 	bltz a4, next_pixel			# x too low - pixel out of the picture
 	bge a4, s4, next_pixel			# x too high - pixel out of the picture
 	
-	add a5, a3, t2				#  x coordinate of the current surrounding pixel
+	add a5, a3, t1				# x coordinate of the current surrounding pixel
 	bltz a5, next_pixel			# y too low - pixel out of the picture
 	bge a5, s5, next_pixel			# y too high - pixel out of the picture
 	
 	
-validated:	
-	## need to calculate value here!
+validated:
+
+calculate_filter_offset:	
+	# calculate the offset from the start of the filter and store the result in a2
+	slli t2, t1, 2
+	add t2, t2, t1		# multiply y offset * 5	
+	add t2, t2, t0		# add x offset
+	addi t2, t2, 12		# add 12 - we want the offset in the range 0-24, not -12 - 12
 	nop						# VALIDATED PIXEL
 	
 	
 next_pixel:
-	addi t1, t1, 1
+	addi t0, t0, 1
 	li t3, 2				# max offset
-	bgt t1, t3, next_row			# x offset > 2 -> switch to next row
+	bgt t0, t3, next_row			# x offset > 2 -> switch to next row
 	b validate_pixel
 	
 
 next_row:
-	li t1, -2				# reset the x offset
-	addi t2, t2, 1				# one row down
+	li t0, -2				# reset the x offset
+	addi t1, t1, 1				# one row down
 	li t3, 2				# max offset
-	bgt t2, t3, all_surr_pixels_looped	# y offset >=3 -> all pixels accounted for
+	bgt t1, t3, all_surr_pixels_looped	# y offset >=3 -> all pixels accounted for
 	b validate_pixel
 
 
@@ -204,17 +214,17 @@ save_file:
 calculate_pixel_x:
 # calculates the x coordinate of the pixel in the cartesian coordinate system
 # takes in the pixel offset in bytes in a0, returns the x value in a1
-	li t1, 3
-	divu t2, a0, t1		# index of the pixel
-	remu a1, t2, s4		# x coordinate
+	li t0, 3
+	divu t1, a0, t0		# index of the pixel
+	remu a1, t1, s4		# x coordinate
 	ret
 
 calculate_pixel_y:
 # calculates the y coordinate of the pixel in the cartesian coordinate system
 # takes in the pixel offset in bytes in a0, returns the y value in a1
-	li t1, 3
-	divu t2, a0, t1		# index of the pixel
-	divu a1, t2, s4		# y coordinate
+	li t0, 3
+	divu t1, a0, t0		# index of the pixel
+	divu a1, t1, s4		# y coordinate
 	ret
 
 
@@ -222,17 +232,17 @@ cords_to_offset:
 # calculates the offset of a pixel based on its x and y position
 # takes in an x in a4 and y in a5, returns offset in a1
 				# MOD 4 CASE!
-	slli t1, s4, 1		# multiply width of image by 3 to calculate width in pixels
-	add t1, t1, s4		
+	slli t0, s4, 1		# multiply width of image by 3 to calculate width in pixels
+	add t0, t0, s4		
 	
-	mul a1, t1, a5		# width in pixels * y = idx of start of row
+	mul a1, t0, a5		# width in pixels * y = idx of start of row
 	
-	slli t1, a4, 1		# multiply x by 3 to calculate offset from start of row in pixels
-	add t1, t1, a4		
+	slli t0, a4, 1		# multiply x by 3 to calculate offset from start of row in pixels
+	add t0, t0, a4		
 	
-	add a1, a1, t1		# add them together to get the final offset
+	add a1, a1, t0		# add them together to get the final offset
 	ret
-
+	
 
 #####################################################################
 
