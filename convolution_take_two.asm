@@ -2,14 +2,15 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/czumpi40x40.bmp"
+fname: 		.asciz  "projekt_riscv/pepsi.bmp"
 output_name:	.asciz "projekt_riscv/convolres.bmp"
 
-#filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
-#filter: 	.byte 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
+filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
+#filter: 	.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+#filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
+#filter:		.byte 0, 0, -2, 0, 0, 0, -2, -5, -2, 0, -2, -5, 86, -5, -2, 0, -2, -5, -2, 0, 0, 0, -2, 0, 0
+#filter:		.byte 0, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, -2, 0, 2, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0
 #filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-#filter:		.byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25
 	   
 	
  	       	.text
@@ -58,6 +59,8 @@ store_important_header_params:	# width stored in s10, height in s11
 	slli s5, s5, 16		# make place again
 	lh t1, 22(t0)
 	add s5, s5, t1
+	
+	rem s8, s2, 4		# used to calculate the padding later on
 	
 	
 allocate_memory_for_new_file:
@@ -207,10 +210,15 @@ next_row:
 
 
 all_surr_pixels_looped:
-	# divide all channels by the sum of weights to normalize
+	
+	beqz a6, skip_division	# for filters where values sum up to 0
+
+	# divide all channels by the sum of weights to normalize	
 	div a7, a7, a6
 	div s0, s0, a6
 	div s1, s1, a6
+	
+skip_division:
 	
 	# calculate the offset to write under
 	mv a4, a2
