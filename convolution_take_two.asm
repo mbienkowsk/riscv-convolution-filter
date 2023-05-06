@@ -2,13 +2,13 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/btop.bmp"
+fname: 		.asciz  "projekt_riscv/czumpi40x40.bmp"
 output_name:	.asciz "projekt_riscv/convolres.bmp"
 
 #filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
 #filter: 	.byte 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-#filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
-filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
+#filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
 #filter:		.byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25
 	   
 	
@@ -173,15 +173,15 @@ validated:
 	add a1, a1, s7		# offset + address of start of data = address of the pixel
 	
 	# update the channel sums
-	lb t3, (a1)		# B channel
+	lbu t3, (a1)		# B channel
 	mul t3, t3, t2		# mul by weight
 	add a7, a7, t3		# add to channel sum
 	
-	lb t3, 1(a1)		# G channel
+	lbu t3, 1(a1)		# G channel
 	mul t3, t3, t2		# mul by weight
 	add s0, s0, t3		# add to channel sum
 	
-	lb t3, 2(a1)		# B channel 
+	lbu t3, 2(a1)		# B channel 
 	mul t3, t3, t2		# mul by weight
 	add s1, s1, t3		# add to channel sum
 	
@@ -207,13 +207,31 @@ next_row:
 
 
 all_surr_pixels_looped:
+	# divide all channels by the sum of weights to normalize
+	div a7, a7, a6
+	div s0, s0, a6
+	div s1, s1, a6
+	
+	# calculate the offset to write under
+	mv a4, a2
+	mv a5, a3	
+	
+	call cords_to_offset
+	add a1, a1, s6				# add base address to offset
+	add a1, a1, s2				# add header + starting offset length to address
+	
+	# write the modified colors
+	sb a7, (a1)
+	sb s0, 1(a1)
+	sb s1, 2(a1)		
+	
 	nop					# //MAIN PIXEL LOOP
 	addi s10, s10, 3			# move 1 pixel = 3 bytes forward
 	b main_loop
 
 
 end:
-	#jal save_file
+	jal save_file
 	li a7, 10
 	ecall
 
@@ -267,7 +285,7 @@ cords_to_offset:
 	add t3, t3, a4		
 	
 	add a1, a1, t3		# add them together to get the final offset
-	
+	ret
 
 #####################################################################
 
