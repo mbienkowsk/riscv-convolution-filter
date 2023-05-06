@@ -9,7 +9,7 @@ output_name:	.asciz "projekt_riscv/convolres.bmp"
 #filter: 	.byte 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 #filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
 #filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-#filter:		.byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25
+filter:		.byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25
 	   
 	
  	       	.text
@@ -157,15 +157,16 @@ validate_pixel:
 validated:
 	# calculate the offset from the start of the filter and store the result in a2
 	slli t2, t1, 2
-	add t2, t2, t1		# multiply y offset * 5	
-	add t2, t2, t0		# add x offset
-	addi t2, t2, 12		# add 12 - we want the offset in the range 0-24, not -12 - 12
+	add t2, t2, t1				# multiply y offset * 5	
+	add t2, t2, t0				# add x offset
+	addi t2, t2, 12				# add 12 - we want the offset in the range 0->24, not -12->12
 	
+	# load the corresponding weight from memory
 	la t3, filter
-	add t2, t2, t3		# address of the corresponding weight
-	lb t3, (t2)		# load the weight from memory
+	add t2, t2, t3		# address of the weight
+	lb t2, (t2)
 	
-	nop						# VALIDATED PIXEL
+	nop			# VALIDATED PIXEL
 	
 	
 next_pixel:
