@@ -2,8 +2,8 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/pepsi_high_res.bmp"
-output_name:	.asciz "projekt_riscv/convolres.bmp"
+fname: 		.asciz  "projekt_riscv/gnioblin.bmp"
+output_name:	.asciz "projekt_riscv/gnioblin_out.bmp"
 
 #filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
 #filter: 	.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -43,24 +43,24 @@ store_important_header_params:	# width stored in s10, height in s11
 				# bytes 11-14 of the header - offset
 	lhu s2, 12(t0)		# load offset into register
 	slli s2, s2, 16		# make space for the rest of the offset
-	lh t1, 10(t0)		# second half of the offset
+	lhu t1, 10(t0)		# second half of the offset
 	add s2, s2, t1		# add the halves together - offset in s2
 
 	lhu s3, 4(t0)		# first half of size
 	slli s3, s3, 16
-	lh t1, 2(t0)
+	lhu t1, 2(t0)
 	add s3, s3, t1		# second half of size
 
 				# bytes 19-22 - width
 	lhu s4, 20(t0)		# first half of width
 	slli s4, s4, 16		# make place for the other half
-	lh t1, 18(t0)		# second half of width
+	lhu t1, 18(t0)		# second half of width
 	add s4, s4, t1		# add the halves together
 
 				# bytes 23-26 - height
 	lhu s5, 24(t0)		# load height into register
 	slli s5, s5, 16		# make place again
-	lh t1, 22(t0)
+	lhu t1, 22(t0)
 	add s5, s5, t1
 	
 	li t1, 4
@@ -223,7 +223,11 @@ all_surr_pixels_looped:
 	div s0, s0, a6
 	div s1, s1, a6
 	
+	
 skip_division:
+	
+	jal normalize_rgb_values
+		
 	
 	# calculate the offset to write under
 	mv a4, a2
@@ -320,6 +324,48 @@ cords_to_offset:
 	
 	add a1, a1, t3		# add them together to get the final offset
 	ret
+
+
+normalize_rgb_values:
+# normalizes the rgb values so that values < 0 are interpreted as 0
+# and values greater than 255 are interpreted as 255
+# takes in the weighted sums from s0, s1 and a7 and modifies them if needed
+	
+	li t1, 255	# max val
+		bgt a7, t1, b_to_255
+		bltz a7, b_to_0
+	normalize_green:
+		bgt s0, t1, g_to_255
+		bltz s0, g_to_0
+	normalize_red:
+		bgt s1, t1, r_to_255
+		bltz s1, r_to_0
+	ret
+	
+	b_to_255:
+		li a7, 255
+		b normalize_green
+		
+	b_to_0:
+		li a7, 0
+		b normalize_green
+
+	g_to_255:
+		li s0, 255
+		b normalize_red
+		
+	g_to_0:
+		li s0, 0
+		b normalize_red
+		
+	r_to_255:
+		li s1, 255
+		ret
+	r_to_0:
+		li s1, 0
+		ret
+	
+	
 
 #####################################################################
 
