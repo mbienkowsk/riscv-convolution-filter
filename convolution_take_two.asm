@@ -2,14 +2,19 @@
 		.data
 
 h_buf:  	.space   54
-fname: 		.asciz  "projekt_riscv/gnioblin.bmp"
-output_name:	.asciz "projekt_riscv/gnioblin_out.bmp"
+fname: 		.asciz  "projekt_riscv/do_pokazania/pepsi_in.bmp"
+output_name:	.asciz "projekt_riscv/do_pokazania/unsharp_masking.bmp"
 
+#	GAUSSIAN BLUR
 #filter: 	.byte 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4, 1
-#filter: 	.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+
+#	EDGE DETECTION
 #filter: 	.byte 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 4, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0
-#filter:		.byte 0, 0, -2, 0, 0, 0, -2, -5, -2, 0, -2, -5, 86, -5, -2, 0, -2, -5, -2, 0, 0, 0, -2, 0, 0
-filter:		.byte 0, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, -2, 0, 2, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0
+
+#	SHARPENING
+#filter:	.byte 0, 0, -2, 0, 0, 0, -2, -5, -2, 0, -2, -5, 86, -5, -2, 0, -2, -5, -2, 0, 0, 0, -2, 0, 0
+
+#	SIMPLE BLUR
 #filter:		.byte 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
 	   
 	
